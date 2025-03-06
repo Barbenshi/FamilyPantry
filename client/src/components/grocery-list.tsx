@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, Plus, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -11,15 +11,18 @@ import type { GroceryItem } from "@shared/schema";
 
 interface GroceryListProps {
   listId: number;
-  items: GroceryItem[];
   isShared?: boolean;
 }
 
-export function GroceryList({ listId, items, isShared = false }: GroceryListProps) {
+export function GroceryList({ listId, isShared = false }: GroceryListProps) {
   const [newItemName, setNewItemName] = useState("");
   const [newItemQuantity, setNewItemQuantity] = useState(1);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  const { data: items = [] } = useQuery<GroceryItem[]>({
+    queryKey: [`/api/lists/${listId}/items`],
+  });
 
   const addItem = useMutation({
     mutationFn: async () => {
@@ -92,7 +95,7 @@ export function GroceryList({ listId, items, isShared = false }: GroceryListProp
             </Button>
           </div>
         )}
-        
+
         <div className="space-y-2">
           {items.map((item) => (
             <div

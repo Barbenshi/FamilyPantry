@@ -13,19 +13,15 @@ import {
 } from "@/components/ui/dialog";
 import { GroceryList } from "@/components/grocery-list";
 import { apiRequest } from "@/lib/queryClient";
+import type { GroceryList as GroceryListType } from "@shared/schema";
 
 export default function Lists() {
   const [newListName, setNewListName] = useState("");
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const lists = useQuery({
+  const { data: lists = [], isLoading } = useQuery<GroceryListType[]>({
     queryKey: ["/api/lists"],
-  });
-
-  const items = useQuery({
-    queryKey: ["/api/lists/items"],
-    enabled: !!lists.data,
   });
 
   const createList = useMutation({
@@ -52,7 +48,7 @@ export default function Lists() {
     });
   };
 
-  if (lists.isLoading) {
+  if (isLoading) {
     return <div>Loading...</div>;
   }
 
@@ -89,7 +85,7 @@ export default function Lists() {
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {lists.data?.map((list) => (
+        {lists.map((list) => (
           <div key={list.id} className="space-y-4">
             <div className="flex justify-between items-center">
               <h2 className="text-xl font-semibold">{list.name}</h2>
@@ -101,10 +97,7 @@ export default function Lists() {
                 <Share2 className="h-4 w-4" />
               </Button>
             </div>
-            <GroceryList
-              listId={list.id}
-              items={items.data?.filter((item) => item.listId === list.id) || []}
-            />
+            <GroceryList listId={list.id} />
           </div>
         ))}
       </div>
