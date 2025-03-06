@@ -59,8 +59,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const itemId = parseInt(req.params.id);
       const { purchased } = req.body;
-      const item = await storage.updateItemPurchased(itemId, purchased);
-      res.json(item);
+      const result = await storage.updateItemPurchased(itemId, purchased);
+      res.json(result);
     } catch (err) {
       handleError(err as Error, res);
     }

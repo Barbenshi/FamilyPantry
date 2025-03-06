@@ -49,8 +49,14 @@ export function GroceryList({ listId, isShared = false }: GroceryListProps) {
       });
       return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: [`/api/lists/${listId}/items`] });
+      if (data.inventoryItem) {
+        queryClient.invalidateQueries({ queryKey: ["/api/inventory"] });
+        toast({
+          description: `${data.groceryItem.quantity}x ${data.groceryItem.name} added to inventory`,
+        });
+      }
     },
   });
 
