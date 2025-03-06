@@ -1,10 +1,27 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
+import { WebSocketServer, type WebSocket } from "ws";
 import { storage } from "./storage";
 import { insertGroceryListSchema, insertGroceryItemSchema, insertInventoryItemSchema } from "@shared/schema";
 import { ZodError } from "zod";
 
+type WebSocketMessage = {
+  type: 'listUpdate' | 'inventoryUpdate';
+  listId?: number;
+};
+
 export async function registerRoutes(app: Express): Promise<Server> {
+  const httpServer = createServer(app);
+  const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
+
+  const broadcastUpdate = (message: WebSocketMessage) => {
+    wss.clients.forEach((client) => {
+      if (client.readyState === WebSocket.OPEN) {
+        client.send(JSON.stringify(message));
+      }
+    });
+  };
+
   // Error handling middleware
   const handleError = (err: Error, res: any) => {
     if (err instanceof ZodError) {
@@ -28,6 +45,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const data = insertGroceryListSchema.parse(req.body);
       const list = await storage.createList(data);
+      broadcastUpdate({ type: 'listUpdate' });
       res.status(201).json(list);
     } catch (err) {
       handleError(err as Error, res);
@@ -49,6 +67,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const listId = parseInt(req.params.id);
       const data = insertGroceryItemSchema.parse({ ...req.body, listId });
       const item = await storage.addItemToList(data);
+      broadcastUpdate({ type: 'listUpdate', listId });
       res.status(201).json(item);
     } catch (err) {
       handleError(err as Error, res);
@@ -60,6 +79,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const itemId = parseInt(req.params.id);
       const { purchased } = req.body;
       const result = await storage.updateItemPurchased(itemId, purchased);
+      broadcastUpdate({ type: 'listUpdate', listId: result.groceryItem.listId });
+      if (result.inventoryItem) {
+        broadcastUpdate({ type: 'inventoryUpdate' });
+      }
       res.json(result);
     } catch (err) {
       handleError(err as Error, res);
@@ -69,7 +92,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/items/:id", async (req, res) => {
     try {
       const itemId = parseInt(req.params.id);
+      const item = await storage.getListItems(itemId);
       await storage.deleteListItem(itemId);
+      if (item.length > 0) {
+        broadcastUpdate({ type: 'listUpdate', listId: item[0].listId });
+      }
       res.status(204).end();
     } catch (err) {
       handleError(err as Error, res);
@@ -90,6 +117,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const data = insertInventoryItemSchema.parse(req.body);
       const item = await storage.createInventoryItem(data);
+      broadcastUpdate({ type: 'inventoryUpdate' });
       res.status(201).json(item);
     } catch (err) {
       handleError(err as Error, res);
@@ -101,6 +129,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const itemId = parseInt(req.params.id);
       const { quantity } = req.body;
       const item = await storage.updateInventoryQuantity(itemId, quantity);
+      broadcastUpdate({ type: 'inventoryUpdate' });
       res.json(item);
     } catch (err) {
       handleError(err as Error, res);
@@ -111,6 +140,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const itemId = parseInt(req.params.id);
       await storage.deleteInventoryItem(itemId);
+      broadcastUpdate({ type: 'inventoryUpdate' });
       res.status(204).end();
     } catch (err) {
       handleError(err as Error, res);
@@ -132,6 +162,5 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  const httpServer = createServer(app);
   return httpServer;
 }
