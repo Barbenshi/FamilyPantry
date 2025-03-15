@@ -1,6 +1,8 @@
 import { MongoClient, Db, Collection } from "mongodb";
+import 'dotenv/config'
 
-const uri = "mongodb+srv://mrtoy:A123456@cluster0.snoavrr.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0";
+
+const uri = process.env.MONGO_URI as string;
 const client: MongoClient = new MongoClient(uri);
 
 // Connect to MongoDB
