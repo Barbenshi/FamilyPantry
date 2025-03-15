@@ -6,6 +6,7 @@
   "homepage": "https://Barbenshi.github.io/FamilyPantry",
   "scripts": {
     "dev": "tsx server/index.ts",
+    "try": "vite build",
     "build": "vite build && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
     "start": "NODE_ENV=production node dist/index.js",
     "check": "tsc",
