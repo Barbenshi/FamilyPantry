@@ -7,18 +7,23 @@ import {
   type InsertInventoryItem,
 } from "@shared/schema";
 import { nanoid } from "nanoid";
+import { getCollection, getDb } from "./mongo";
+import { Collection, ObjectId } from "mongodb";
 
 export interface IStorage {
   // Grocery Lists
   createList(list: InsertGroceryList): Promise<GroceryList>;
-  getList(id: number): Promise<GroceryList | undefined>;
+  getList(_id: number): Promise<GroceryList | undefined>;
   getListByShareId(shareId: string): Promise<GroceryList | undefined>;
   getAllLists(): Promise<GroceryList[]>;
 
   // Grocery Items
   addItemToList(item: InsertGroceryItem): Promise<GroceryItem>;
   getListItems(listId: number): Promise<GroceryItem[]>;
-  updateItemPurchased(itemId: number, purchased: boolean): Promise<{groceryItem: GroceryItem, inventoryItem?: InventoryItem}>;
+  updateItemPurchased(
+    itemId: number,
+    purchased: boolean
+  ): Promise<{ groceryItem: GroceryItem; inventoryItem?: InventoryItem }>;
   deleteListItem(itemId: number): Promise<void>;
 
   // Inventory
@@ -29,131 +34,152 @@ export interface IStorage {
   getInventoryItemByName(name: string): Promise<InventoryItem | undefined>;
 }
 
-export class MemStorage implements IStorage {
-  private lists: Map<number, GroceryList>;
-  private items: Map<number, GroceryItem>;
-  private inventory: Map<number, InventoryItem>;
-  private currentListId: number;
-  private currentItemId: number;
-  private currentInventoryId: number;
-
-  constructor() {
-    this.lists = new Map();
-    this.items = new Map();
-    this.inventory = new Map();
-    this.currentListId = 1;
-    this.currentItemId = 1;
-    this.currentInventoryId = 1;
+export class MongoStorage implements IStorage {
+  // Helper: emulate auto-increment numeric IDs using a "counters" collection.
+  private async getNextSequence(seqName: string): Promise<number> {
+    const db = getDb();
+    const counters = db.collection("counters");
+    const result = await counters.findOneAndUpdate(
+      { _id: seqName },
+      { $inc: { seq: 1 } },
+      { upsert: true, returnOriginal: false }
+    );
+    if (!result) {
+      // As a fallback, try to fetch the document directly.
+      const doc = await counters.findOne({ _id: seqName });
+      if (doc && doc.seq !== undefined) {
+        return doc.seq;
+      }
+      throw new Error(`Failed to get sequence for ${seqName}`);
+    }
+    return result.value?.seq;
   }
-
+  
+  // Grocery Lists
   async createList(list: InsertGroceryList): Promise<GroceryList> {
-    const id = this.currentListId++;
-    const newList: GroceryList = {
-      id,
-      shareId: nanoid(10),
-      ...list,
-    };
-    this.lists.set(id, newList);
+    const listsCollection = getCollection<GroceryList>("lists");
+    const _id = await this.getNextSequence("lists");
+    const shareId = nanoid(10);
+    const newList: GroceryList = { _id, shareId, ...list };
+    await listsCollection.insertOne(newList);
     return newList;
   }
 
-  async getList(id: number): Promise<GroceryList | undefined> {
-    return this.lists.get(id);
+  async getList(_id: number): Promise<GroceryList | undefined> {
+    const listsCollection = getCollection<GroceryList>("lists");
+    return await listsCollection.findOne({ _id });
   }
 
   async getListByShareId(shareId: string): Promise<GroceryList | undefined> {
-    return Array.from(this.lists.values()).find(list => list.shareId === shareId);
+    const listsCollection = getCollection<GroceryList>("lists");
+    return await listsCollection.findOne({ shareId });
   }
 
   async getAllLists(): Promise<GroceryList[]> {
-    return Array.from(this.lists.values());
+    const listsCollection = getCollection<GroceryList>("lists");
+    return await listsCollection.find().toArray();
   }
 
+  // Grocery Items
   async addItemToList(item: InsertGroceryItem): Promise<GroceryItem> {
-    const id = this.currentItemId++;
+    const itemsCollection = getCollection<GroceryItem>("items");
+    const _id = await this.getNextSequence("items");
     const newItem: GroceryItem = {
-      id,
+      _id,
       purchased: false,
       ...item,
       category: item.category || null,
     };
-    this.items.set(id, newItem);
+    await itemsCollection.insertOne(newItem);
     return newItem;
   }
 
   async getListItems(listId: number): Promise<GroceryItem[]> {
-    return Array.from(this.items.values()).filter(item => item.listId === listId);
+    const itemsCollection = getCollection<GroceryItem>("items");
+    return await itemsCollection.find({ listId }).toArray();
   }
 
-  async getInventoryItemByName(name: string): Promise<InventoryItem | undefined> {
-    return Array.from(this.inventory.values()).find(item => item.name === name);
-  }
+  async updateItemPurchased(
+    itemId: ObjectId,
+    purchased: boolean
+  ): Promise<{ groceryItem: GroceryItem; inventoryItem?: InventoryItem }> {
+    const itemsCollection = getCollection<GroceryItem>("items");
+    console.log(itemId)
+    const updateResult = await itemsCollection.findOneAndUpdate(
+      { _id: itemId },
+      { $set: { purchased } },
+      { returnDocument: "after" }
+    );
+    console.log(updateResult,'updatetd result')
+    if (!updateResult) throw new Error("Item not found");
+    const updatedItem = updateResult;
 
-  async updateItemPurchased(itemId: number, purchased: boolean): Promise<{groceryItem: GroceryItem, inventoryItem?: InventoryItem}> {
-    const item = this.items.get(itemId);
-    if (!item) throw new Error("Item not found");
-
-    const updatedItem = { ...item, purchased };
-    this.items.set(itemId, updatedItem);
-
-    // If item is marked as purchased, update inventory
+    let inventoryItem: InventoryItem | undefined;
     if (purchased) {
-      let inventoryItem = await this.getInventoryItemByName(item.name);
-
+      inventoryItem = await this.getInventoryItemByName(updatedItem.name);
       if (inventoryItem) {
-        // Update existing inventory item
         inventoryItem = await this.updateInventoryQuantity(
-          inventoryItem.id,
-          inventoryItem.quantity + item.quantity
+          inventoryItem._id,
+          inventoryItem.quantity + updatedItem.quantity
         );
       } else {
-        // Create new inventory item
         inventoryItem = await this.createInventoryItem({
-          name: item.name,
-          quantity: item.quantity,
-          category: item.category || null,
+          name: updatedItem.name,
+          quantity: updatedItem.quantity,
+          category: updatedItem.category || null,
           lowStockThreshold: 1,
         });
       }
-
       return { groceryItem: updatedItem, inventoryItem };
     }
-
     return { groceryItem: updatedItem };
   }
 
   async deleteListItem(itemId: number): Promise<void> {
-    this.items.delete(itemId);
+    const itemsCollection = getCollection<GroceryItem>("items");
+    await itemsCollection.deleteOne({ _id: itemId });
   }
 
+  // Inventory
   async createInventoryItem(item: InsertInventoryItem): Promise<InventoryItem> {
-    const id = this.currentInventoryId++;
+    const inventoryCollection = getCollection<InventoryItem>("inventory");
+    const _id = await this.getNextSequence("inventory");
     const newItem: InventoryItem = {
-      id,
+      _id,
       ...item,
       category: item.category || null,
       lowStockThreshold: item.lowStockThreshold || null,
     };
-    this.inventory.set(id, newItem);
+    await inventoryCollection.insertOne(newItem);
     return newItem;
   }
 
   async getAllInventoryItems(): Promise<InventoryItem[]> {
-    return Array.from(this.inventory.values());
+    const inventoryCollection = getCollection<InventoryItem>("inventory");
+    return await inventoryCollection.find().toArray();
   }
 
   async updateInventoryQuantity(itemId: number, quantity: number): Promise<InventoryItem> {
-    const item = this.inventory.get(itemId);
-    if (!item) throw new Error("Inventory item not found");
-
-    const updatedItem = { ...item, quantity };
-    this.inventory.set(itemId, updatedItem);
-    return updatedItem;
+    const inventoryCollection = getCollection<InventoryItem>("inventory");
+    const result = await inventoryCollection.findOneAndUpdate(
+      { _id: itemId },
+      { $set: { quantity } },
+      { returnDocument: "after" }
+    );
+    if (!result) throw new Error("Inventory item not found");
+    return result;
   }
 
   async deleteInventoryItem(itemId: number): Promise<void> {
-    this.inventory.delete(itemId);
+    const inventoryCollection = getCollection<InventoryItem>("inventory");
+    await inventoryCollection.deleteOne({ _id: itemId });
+  }
+
+  async getInventoryItemByName(name: string): Promise<InventoryItem | undefined> {
+    const inventoryCollection = getCollection<InventoryItem>("inventory");
+    return await inventoryCollection.findOne({ name });
   }
 }
 
-export const storage = new MemStorage();
+// Export an instance that will be used by your routes.
+export const storage = new MongoStorage();

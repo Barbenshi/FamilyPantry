@@ -44,7 +44,7 @@ export function GroceryList({ listId, isShared = false }: GroceryListProps) {
 
   const togglePurchased = useMutation({
     mutationFn: async (item: GroceryItem) => {
-      const res = await apiRequest("PATCH", `/api/items/${item.id}/purchased`, {
+      const res = await apiRequest("PATCH", `/api/items/${item._id}/purchased`, {
         purchased: !item.purchased,
       });
       return res.json();
@@ -105,7 +105,7 @@ export function GroceryList({ listId, isShared = false }: GroceryListProps) {
         <div className="space-y-2">
           {items.map((item) => (
             <div
-              key={item.id}
+              key={item._id}
               className="flex items-center justify-between p-2 rounded-lg hover:bg-muted"
             >
               <div className="flex items-center space-x-2">
@@ -122,7 +122,7 @@ export function GroceryList({ listId, isShared = false }: GroceryListProps) {
                 <Button
                   variant="ghost"
                   size="icon"
-                  onClick={() => deleteItem.mutate(item.id)}
+                  onClick={() => deleteItem.mutate(item._id)}
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>

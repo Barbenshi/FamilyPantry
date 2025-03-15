@@ -16,7 +16,7 @@ export function InventoryItemCard({ item }: InventoryItemProps) {
 
   const updateQuantity = useMutation({
     mutationFn: async (newQuantity: number) => {
-      const res = await apiRequest("PATCH", `/api/inventory/${item.id}/quantity`, {
+      const res = await apiRequest("PATCH", `/api/inventory/${item._id}/quantity`, {
         quantity: newQuantity,
       });
       return res.json();
@@ -28,7 +28,7 @@ export function InventoryItemCard({ item }: InventoryItemProps) {
 
   const deleteItem = useMutation({
     mutationFn: async () => {
-      await apiRequest("DELETE", `/api/inventory/${item.id}`);
+      await apiRequest("DELETE", `/api/inventory/${item._id}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/inventory"] });
