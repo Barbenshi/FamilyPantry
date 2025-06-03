@@ -5,7 +5,7 @@ import {
   type InsertGroceryList,
   type InsertGroceryItem,
   type InsertInventoryItem,
-} from "@shared/schema";
+} from "../shared/schema";
 import { nanoid } from "nanoid";
 import { getCollection, getDb } from "./mongo";
 
