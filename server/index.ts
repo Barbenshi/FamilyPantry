@@ -37,7 +37,7 @@ app.use((req, res, next) => {
   next();
 });
 
-(async () => {
+export async function init() {
   await connect();
   const server = await registerRoutes(app);
 
@@ -58,15 +58,23 @@ app.use((req, res, next) => {
     serveStatic(app);
   }
 
-  // ALWAYS serve the app on port 5000
-  // this serves both the API and the client
-  const port = process.env.PORT;
-  server.listen({
-    port,
-    host: "0.0.0.0",
-  }, () => {
-    log(`serving on port ${port}`);
-  });
-})();
+  return server;
+}
+
+if (!process.env.VERCEL) {
+  (async () => {
+    const server = await init();
+
+    // ALWAYS serve the app on port 5000
+    // this serves both the API and the client
+    const port = process.env.PORT;
+    server.listen({
+      port,
+      host: "0.0.0.0",
+    }, () => {
+      log(`serving on port ${port}`);
+    });
+  })();
+}
 
 export default app;
