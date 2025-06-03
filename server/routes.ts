@@ -3,7 +3,13 @@ import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { Server as SocketIOServer } from "socket.io";
 import { storage } from "./storage";
-import { insertGroceryListSchema, insertGroceryItemSchema, insertInventoryItemSchema } from "@shared/schema";
+// Use a relative import so tests running in Node can resolve the module without
+// relying on TypeScript path mappings.
+import {
+  insertGroceryListSchema,
+  insertGroceryItemSchema,
+  insertInventoryItemSchema,
+} from "../shared/schema";
 import { ZodError } from "zod";
 
 type WebSocketMessage = {
