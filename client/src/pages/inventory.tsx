@@ -12,6 +12,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { InventoryItemCard } from "@/components/inventory-item";
+import type { InventoryItem } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
 
 export default function Inventory() {
@@ -21,7 +22,7 @@ export default function Inventory() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const inventory = useQuery({
+  const inventory = useQuery<InventoryItem[]>({
     queryKey: ["/api/inventory"],
   });
 
@@ -104,7 +105,7 @@ export default function Inventory() {
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         {inventory.data?.map((item) => (
-          <InventoryItemCard key={item.id} item={item} />
+          <InventoryItemCard key={item._id} item={item} />
         ))}
       </div>
     </div>

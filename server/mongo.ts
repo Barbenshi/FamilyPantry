@@ -1,4 +1,4 @@
-import { MongoClient, Db, Collection } from "mongodb";
+import { MongoClient, Db, Collection, type Document } from "mongodb";
 import 'dotenv/config'
 
 
@@ -21,6 +21,6 @@ export function getDb(): Db {
 }
 
 // Generic helper to get a collection
-export function getCollection<T>(name: string): Collection<T> {
+export function getCollection<T extends Document>(name: string): Collection<T> {
   return getDb().collection<T>(name);
 }
