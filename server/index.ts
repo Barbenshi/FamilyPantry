@@ -61,20 +61,23 @@ export async function init() {
   return server;
 }
 
-if (!process.env.VERCEL) {
-  (async () => {
-    const server = await init();
+const initPromise = init();
 
+if (!process.env.VERCEL) {
+  initPromise.then((server) => {
     // ALWAYS serve the app on port 5000
     // this serves both the API and the client
     const port = process.env.PORT;
-    server.listen({
-      port,
-      host: "0.0.0.0",
-    }, () => {
-      log(`serving on port ${port}`);
-    });
-  })();
+    server.listen(
+      {
+        port,
+        host: "0.0.0.0",
+      },
+      () => {
+        log(`serving on port ${port}`);
+      },
+    );
+  });
 }
 
 export default app;
