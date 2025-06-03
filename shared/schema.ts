@@ -1,12 +1,11 @@
 import { pgTable, text, serial, integer, boolean, timestamp } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
-import { nanoid } from "nanoid";
 
 export const groceryLists = pgTable("grocery_lists", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
-  shareId: text("share_id").notNull().default(() => nanoid(10)),
+  shareId: text("share_id").notNull(),
 });
 
 export const groceryItems = pgTable("grocery_items", {
@@ -53,9 +52,15 @@ export const insertInventoryItemSchema = createInsertSchema(inventoryItems)
     lowStockThreshold: z.number().min(0).optional(),
   });
 
-export type GroceryList = typeof groceryLists.$inferSelect;
-export type GroceryItem = typeof groceryItems.$inferSelect;
-export type InventoryItem = typeof inventoryItems.$inferSelect;
+export type GroceryList = Omit<typeof groceryLists.$inferSelect, "id"> & {
+  _id: number;
+};
+export type GroceryItem = Omit<typeof groceryItems.$inferSelect, "id"> & {
+  _id: number;
+};
+export type InventoryItem = Omit<typeof inventoryItems.$inferSelect, "id"> & {
+  _id: number;
+};
 
 export type InsertGroceryList = z.infer<typeof insertGroceryListSchema>;
 export type InsertGroceryItem = z.infer<typeof insertGroceryItemSchema>;

@@ -5,7 +5,6 @@ import { Server as SocketIOServer } from "socket.io";
 import { storage } from "./storage";
 import { insertGroceryListSchema, insertGroceryItemSchema, insertInventoryItemSchema } from "@shared/schema";
 import { ZodError } from "zod";
-import { ObjectId } from "mongodb";
 
 type WebSocketMessage = {
   type: 'listUpdate' | 'inventoryUpdate';
@@ -79,7 +78,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.patch("/api/items/:id/purchased", async (req, res) => {
     try {
-      const itemId = new ObjectId(req.params.id);
+      const itemId = parseInt(req.params.id);
       const { purchased } = req.body;
       const result = await storage.updateItemPurchased(itemId, purchased);
       broadcastUpdate({ type: 'listUpdate', listId: result.groceryItem.listId });
@@ -96,7 +95,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const itemId = parseInt(req.params.id);
       const item = await storage.getListItems(itemId);
-      console.log(item);
       await storage.deleteListItem(itemId);
       if (item.length > 0) {
         broadcastUpdate({ type: 'listUpdate', listId: item[0].listId });
@@ -159,7 +157,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!list) {
         return res.status(404).json({ message: "List not found" });
       }
-      const items = await storage.getListItems(list.id);
+      const items = await storage.getListItems(list._id);
       res.json({ list, items });
     } catch (err) {
       handleError(err as Error, res);

@@ -8,7 +8,6 @@ import {
 } from "@shared/schema";
 import { nanoid } from "nanoid";
 import { getCollection, getDb } from "./mongo";
-import { Collection, ObjectId } from "mongodb";
 
 export interface IStorage {
   // Grocery Lists
@@ -38,21 +37,20 @@ export class MongoStorage implements IStorage {
   // Helper: emulate auto-increment numeric IDs using a "counters" collection.
   private async getNextSequence(seqName: string): Promise<number> {
     const db = getDb();
-    const counters = db.collection("counters");
-    const result = await counters.findOneAndUpdate(
+    const counters = db.collection<{ _id: string; seq: number }>("counters");
+    const updated = await counters.findOneAndUpdate(
       { _id: seqName },
       { $inc: { seq: 1 } },
-      { upsert: true, returnOriginal: false }
+      { upsert: true, returnDocument: "after" }
     );
-    if (!result) {
-      // As a fallback, try to fetch the document directly.
+    if (!updated) {
       const doc = await counters.findOne({ _id: seqName });
       if (doc && doc.seq !== undefined) {
         return doc.seq;
       }
       throw new Error(`Failed to get sequence for ${seqName}`);
     }
-    return result.value?.seq;
+    return updated.seq;
   }
   
   // Grocery Lists
@@ -67,12 +65,14 @@ export class MongoStorage implements IStorage {
 
   async getList(_id: number): Promise<GroceryList | undefined> {
     const listsCollection = getCollection<GroceryList>("lists");
-    return await listsCollection.findOne({ _id });
+    const result = await listsCollection.findOne({ _id });
+    return result ?? undefined;
   }
 
   async getListByShareId(shareId: string): Promise<GroceryList | undefined> {
     const listsCollection = getCollection<GroceryList>("lists");
-    return await listsCollection.findOne({ shareId });
+    const result = await listsCollection.findOne({ shareId });
+    return result ?? undefined;
   }
 
   async getAllLists(): Promise<GroceryList[]> {
@@ -100,19 +100,16 @@ export class MongoStorage implements IStorage {
   }
 
   async updateItemPurchased(
-    itemId: ObjectId,
+    itemId: number,
     purchased: boolean
   ): Promise<{ groceryItem: GroceryItem; inventoryItem?: InventoryItem }> {
     const itemsCollection = getCollection<GroceryItem>("items");
-    console.log(itemId)
-    const updateResult = await itemsCollection.findOneAndUpdate(
+    const updatedItem = await itemsCollection.findOneAndUpdate(
       { _id: itemId },
       { $set: { purchased } },
       { returnDocument: "after" }
     );
-    console.log(updateResult,'updatetd result')
-    if (!updateResult) throw new Error("Item not found");
-    const updatedItem = updateResult;
+    if (!updatedItem) throw new Error("Item not found");
 
     let inventoryItem: InventoryItem | undefined;
     if (purchased) {
@@ -161,13 +158,13 @@ export class MongoStorage implements IStorage {
 
   async updateInventoryQuantity(itemId: number, quantity: number): Promise<InventoryItem> {
     const inventoryCollection = getCollection<InventoryItem>("inventory");
-    const result = await inventoryCollection.findOneAndUpdate(
+    const updated = await inventoryCollection.findOneAndUpdate(
       { _id: itemId },
       { $set: { quantity } },
       { returnDocument: "after" }
     );
-    if (!result) throw new Error("Inventory item not found");
-    return result;
+    if (!updated) throw new Error("Inventory item not found");
+    return updated;
   }
 
   async deleteInventoryItem(itemId: number): Promise<void> {
@@ -177,7 +174,8 @@ export class MongoStorage implements IStorage {
 
   async getInventoryItemByName(name: string): Promise<InventoryItem | undefined> {
     const inventoryCollection = getCollection<InventoryItem>("inventory");
-    return await inventoryCollection.findOne({ name });
+    const result = await inventoryCollection.findOne({ name });
+    return result ?? undefined;
   }
 }
 

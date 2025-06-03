@@ -86,7 +86,7 @@ export default function Lists() {
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         {lists.map((list) => (
-          <div key={list.id} className="space-y-4">
+          <div key={list._id} className="space-y-4">
             <div className="flex justify-between items-center">
               <h2 className="text-xl font-semibold">{list.name}</h2>
               <Button
@@ -97,7 +97,7 @@ export default function Lists() {
                 <Share2 className="h-4 w-4" />
               </Button>
             </div>
-            <GroceryList listId={list.id} />
+            <GroceryList listId={list._id} />
           </div>
         ))}
       </div>
